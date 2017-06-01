@@ -1,16 +1,20 @@
 # /usr/bin/python
 # -*- coding: utf-8 -*-
 
+import sys
 import zipfile
 import pandas as pd
 from scipy import sparse
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.linear_model import LogisticRegression
 
+# sys.path.append('C:\\Users\\DAWIN\\Documents\\Tencent Files\\694596886\\FileRecv\\XGBoost包及教程\\xgboost-master\\wrapper')
+
 import xgboost as xgb
 from sklearn.cross_validation import train_test_split
 
 import time
+
 
 start_time = time.time()
 
@@ -51,14 +55,14 @@ dfTest = pd.merge(dfTest, dfApp_categories, on="appID")
 # dfTest = pd.merge(dfTest, dfUser_app_actions, on="userID")
 # dfTest = pd.merge(dfTest, dfUser_installedapps, on="userID")
 
-trains = dfTrain.iloc[:, 0:15]
-tests = dfTest.iloc[:, 0:15]
+trains = dfTrain # .iloc[:, 0:15]
+tests = dfTest # .iloc[:, 0:15]
 print '-----------------------------------------------------'
 # test_userID = dfTest.userID
 # test_creativeID = dfTest.creativeID
 
 params = {
-'booster':'gbtree',
+'booster':'gbtree', # 选择每次迭代的模型，有两种选择：1.gbtree：基于树的模型 2.gbliner：线性模型
 'objective': 'binary:logistic',
 'scale_pos_weight': 1/9.5,
 # 27324条正样本
@@ -77,11 +81,11 @@ params = {
 'eta': 0.01, # 如同学习率
 'seed':1000,
 'nthread':16,# cpu 线程数
-'eval_metric': 'auc'
+'eval_metric': 'rmse'
 }
 
 plst = list(params.items())
-num_rounds = 5000  # 迭代次数
+num_rounds = 1000  # 迭代次数
 
 train_xy, val = train_test_split(trains, test_size=0.15, random_state=1)
 # random_state is of big influence for val-auc
@@ -106,12 +110,25 @@ print "跑到这里了xgb.train"
 model = xgb.train(plst, xgb_train, num_rounds, watchlist, early_stopping_rounds=500)
 print "跑到这里了save_model"
 model.save_model('model/xgb.model')  # 用于存储训练出的模型
-print "best best_ntree_limit", model.best_ntree_limit  # did not save the best,why?
-print "best best_iteration", model.best_iteration  # get it?
+# print "best best_ntree_limit", model.best_ntree_limit  # did not save the best,why?
+# print "best best_iteration", model.best_iteration  # get it?
 
 print "跑到这里了model.predict"
 # preds = model.predict(xgb_test, ntree_limit=model.best_iteration)
 # test_y = model.predict(xgb_test, ntree_limit=model.best_iteration)
+
+preds = model.predict(xgb_test, ntree_limit=model.best_iteration)
+# labels = xgb_test.get_label()
+xgb_result = pd.DataFrame({"instanceID": dfTest["instanceID"].values, "proba": preds})
+# xgb_result.proba = preds
+xgb_result.sort_values("instanceID", inplace=True)
+xgb_result.to_csv("submission.csv", index=False)
+with zipfile.ZipFile("submission.zip", "w") as fout:
+    fout.write("submission.csv", compress_type=zipfile.ZIP_DEFLATED)
+
+# print ('error=%f' % (sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))))
+
+# print ('correct=%f' % (sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) == labels[i]) / float(len(preds))))
 """
 test_result = pd.DataFrame(columns=["userID", "creativeID", "label"])
 test_result.userID = test_userID
@@ -137,6 +154,7 @@ with open('newfeatures/feature_score_{0}.csv'.format(6), 'w') as f:
 # X = X['label_huidalv']
 # test = test['label_huidalv']
 """
+"""
 model1 = LogisticRegression()
 model1.fit(X, y)
 lr_y1 = model1.predict_log_proba(test)
@@ -148,7 +166,7 @@ lr_result.sort_values("instanceID", inplace=True)
 lr_result.to_csv("submission.csv", index=False)
 with zipfile.ZipFile("submission.zip", "w") as fout:
     fout.write("submission.csv", compress_type=zipfile.ZIP_DEFLATED)
-
+"""
 """
 lr_result.userID = test_userID
 lr_result.creativeID = test_creativeID
